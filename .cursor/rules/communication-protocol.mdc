@@ -1,0 +1,52 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Communication Standards and Change Reporting
+globs: 
+alwaysApply: true
+---
+
+# COMMUNICATION PROTOCOL
+
+## Status Updates
+- After EACH change, provide:
+
+## [COMPLETE] Description of change
+  - Coverage: XX% statements, XX% branches
+  - Next: Description of next step
+  - Updated: stories.md [x] Sub-task name
+
+## Change Classification
+- [MINOR] 1-5 lines
+- [MODERATE] 5-20 lines
+- [MAJOR] 20+ lines (requires approval)
+- [COMPLEX] Affects >3 files (requires approval)
+
+## Tool Usage Reporting
+- After using Think MCP:
+  [THINK COMPLETE] - X thoughts recorded
+  - Key insights: Brief summary
+  - Action plan: Identified steps
+- After web searches:
+  [WEB SEARCH COMPLETE] - Used <Tool>
+  - Found: Key findings summary
+  - Applied: How information was used
+  - Source: Main reference URLs
+
+## Approval Requirements
+- MUST get approval for [MAJOR] changes
+- MUST get approval for [COMPLEX] changes
+- MUST get approval for performance-critical changes
+- MUST get approval for database schema changes
+
+## Documentation Updates
+- Update stories.md in real-time after each component completion
+- Document all status changes with appropriate markers:
+  - Complete: [x]
+  - In Progress: [-]
+  - Pending: [ ]
+- Record all technical decisions in instructions.md
+- Log significant events and milestones in logs.md

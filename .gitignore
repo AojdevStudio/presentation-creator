@@ -1,0 +1,54 @@
+# Environment and IDE
+venv/
+.env
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+
+# Project specific
+*.pptx
+!templates/*.pptx
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+
+# Dependency directories
+node_modules/
+
+# Editor directories and files
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS specific
+.DS_Store
+
+# Task files
+tasks.json
+tasks/ 
