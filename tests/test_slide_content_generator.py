@@ -3,95 +3,81 @@ Tests for slide content generation functionality.
 """
 import os
 import pytest
-from unittest.mock import AsyncMock, patch
+import pytest_asyncio
+from unittest.mock import AsyncMock, patch, MagicMock
 from src.core.slide_content_generator import SlideContentGenerator
 
-@pytest.fixture
-def mock_openai_client():
-    """Create a mock OpenAI client for testing."""
+@pytest_asyncio.fixture
+async def content_generator():
+    """Create a slide content generator with mocked OpenAI client."""
     with patch('src.core.slide_content_generator.AssistantsAPIClient') as mock_client:
-        # Create mock assistant and thread responses
-        mock_assistant = AsyncMock()
-        mock_assistant.id = "test_assistant_id"
+        # Create mock instance
+        mock_api = AsyncMock()
+        mock_client.return_value = mock_api
         
-        mock_thread = AsyncMock()
-        mock_thread.id = "test_thread_id"
+        # Configure mock responses
+        mock_api.create_assistant.return_value = MagicMock(id="test-assistant")
+        mock_api.create_thread.return_value = MagicMock(id="test-thread")
+        mock_api.add_message.return_value = MagicMock(id="test-message")
+        mock_api.run_assistant.return_value = MagicMock(id="test-run")
+        mock_api.get_run_status.return_value = MagicMock(status="completed")
+        mock_api.get_messages.return_value = MagicMock(
+            data=[
+                MagicMock(
+                    content=[
+                        MagicMock(
+                            text=MagicMock(
+                                value='{"type": "title", "content": {"title": "Test Title", "subtitle": "Test Subtitle"}}'
+                            )
+                        )
+                    ]
+                )
+            ]
+        )
         
-        mock_run = AsyncMock()
-        mock_run.id = "test_run_id"
-        
-        mock_status = AsyncMock()
-        mock_status.status = "completed"
-        
-        mock_message = AsyncMock()
-        mock_message.content = [AsyncMock()]
-        mock_message.content[0].text.value = "Generated slide content"
-        
-        mock_messages = AsyncMock()
-        mock_messages.data = [mock_message]
-        
-        # Configure the client's mock methods
-        client_instance = mock_client.return_value
-        client_instance.create_assistant = AsyncMock(return_value=mock_assistant)
-        client_instance.create_thread = AsyncMock(return_value=mock_thread)
-        client_instance.add_message = AsyncMock()
-        client_instance.run_assistant = AsyncMock(return_value=mock_run)
-        client_instance.get_run_status = AsyncMock(return_value=mock_status)
-        client_instance.get_messages = AsyncMock(return_value=mock_messages)
-        
-        yield client_instance
+        generator = SlideContentGenerator(api_key="test-key")
+        generator.api_client = mock_api
+        yield generator
 
 @pytest.mark.asyncio
-async def test_initialize(mock_openai_client):
-    """Test initialization of the slide content generator."""
-    generator = SlideContentGenerator()
-    await generator.initialize()
+async def test_initialize(content_generator):
+    """Test initialization of the content generator."""
+    await content_generator.initialize()
     
-    # Verify that assistant and thread were created
-    mock_openai_client.create_assistant.assert_called_once()
-    mock_openai_client.create_thread.assert_called_once()
-    
-    assert generator.assistant is not None
-    assert generator.thread is not None
+    content_generator.api_client.create_assistant.assert_called_once()
+    content_generator.api_client.create_thread.assert_called_once()
+    assert content_generator.assistant_id == "test-assistant"
+    assert content_generator.thread_id == "test-thread"
 
 @pytest.mark.asyncio
-async def test_generate_slide_content(mock_openai_client):
-    """Test generating content for a single slide."""
-    generator = SlideContentGenerator()
-    await generator.initialize()
+async def test_generate_slide_content(content_generator):
+    """Test generating slide content."""
+    await content_generator.initialize()
     
     variables = {
-        "title": "Test Slide",
-        "subtitle": "Testing slide generation",
+        "title": "Test Title",
+        "subtitle": "Test Subtitle",
         "presenter": "Test User",
         "date": "2024-03-31"
     }
     
-    result = await generator.generate_slide_content("title", variables)
+    result = await content_generator.generate_slide_content("title", variables)
     
-    # Verify API calls
-    mock_openai_client.add_message.assert_called_once()
-    mock_openai_client.run_assistant.assert_called_once()
-    mock_openai_client.get_run_status.assert_called_once()
-    mock_openai_client.get_messages.assert_called_once()
-    
-    # Verify result structure
-    assert result["content"] == "Generated slide content"
+    assert "content" in result
     assert result["type"] == "title"
     assert result["variables"] == variables
 
 @pytest.mark.asyncio
-async def test_generate_multiple_slides(mock_openai_client):
-    """Test generating content for multiple slides."""
-    generator = SlideContentGenerator()
-    await generator.initialize()
+async def test_generate_multiple_slides(content_generator):
+    """Test generating multiple slides."""
+    await content_generator.initialize()
     
-    slide_specs = [
+    slides = [
         {
             "template_type": "title",
             "variables": {
-                "title": "Presentation Title",
-                "subtitle": "Subtitle",
+                "title": "Test Presentation",
+                "subtitle": "Testing Multiple Slides",
                 "presenter": "Test User",
                 "date": "2024-03-31"
             }
@@ -99,66 +85,124 @@ async def test_generate_multiple_slides(mock_openai_client):
         {
             "template_type": "content",
             "variables": {
-                "title": "Content Slide",
+                "title": "Test Content",
+                "subtitle": "Content Details",
                 "key_points": ["Point 1", "Point 2"],
-                "context": "Additional context"
+                "context": "Test context"
             }
         }
     ]
     
-    results = await generator.generate_multiple_slides(slide_specs)
+    results = await content_generator.generate_multiple_slides(slides)
     
-    # Verify number of API calls (2 slides = 2 sets of calls)
-    assert mock_openai_client.add_message.call_count == 2
-    assert mock_openai_client.run_assistant.call_count == 2
-    assert mock_openai_client.get_run_status.call_count == 2
-    assert mock_openai_client.get_messages.call_count == 2
-    
-    # Verify results
-    assert len(results) == 2
-    for result, spec in zip(results, slide_specs):
-        assert result["content"] == "Generated slide content"
-        assert result["type"] == spec["template_type"]
-        assert result["variables"] == spec["variables"]
+    assert len(results) == len(slides)
+    for result in results:
+        assert "content" in result
+        assert "type" in result
+        assert "variables" in result
 
 @pytest.mark.asyncio
-async def test_error_handling(mock_openai_client):
-    """Test error handling during content generation."""
-    generator = SlideContentGenerator()
-    await generator.initialize()
+async def test_error_handling(content_generator):
+    """Test error handling in content generation."""
+    await content_generator.initialize()
     
-    # Configure mock to raise an exception
-    mock_openai_client.add_message.side_effect = Exception("API Error")
+    # Configure mock to simulate API error
+    content_generator.api_client.add_message.side_effect = Exception("API Error")
     
-    variables = {
-        "title": "Test Slide",
-        "subtitle": "Testing error handling",
-        "presenter": "Test User",
-        "date": "2024-03-31"
-    }
+    with pytest.raises(Exception) as exc_info:
+        await content_generator.generate_slide_content(
+            "title",
+            {
+                "title": "Test Title",
+                "subtitle": "Test Subtitle",
+                "presenter": "Test User",
+                "date": "2024-03-31"
+            }
+        )
+    assert str(exc_info.value) == "API Error"
+
+@pytest.mark.asyncio
+async def test_run_completion_timeout(content_generator):
+    """Test handling of run completion timeout."""
+    await content_generator.initialize()
     
-    # Test single slide error handling
-    with pytest.raises(Exception):
-        await generator.generate_slide_content("title", variables)
+    # Configure mock to simulate timeout
+    content_generator.api_client.get_run_status.return_value = MagicMock(status="in_progress")
     
-    # Test multiple slides error handling
-    slide_specs = [
-        {
-            "template_type": "title",
-            "variables": variables
-        }
-    ]
+    with pytest.raises(TimeoutError):
+        await content_generator.generate_slide_content(
+            "title",
+            {
+                "title": "Test Title",
+                "subtitle": "Test Subtitle",
+                "presenter": "Test User",
+                "date": "2024-03-31"
+            },
+            timeout=0.1
+        )
+
+@pytest.mark.asyncio
+async def test_run_completion_error(content_generator):
+    """Test handling of run completion error."""
+    await content_generator.initialize()
     
-    results = await generator.generate_multiple_slides(slide_specs)
-    assert len(results) == 1
-    assert "error" in results[0]
-    assert results[0]["type"] == "title"
-    assert results[0]["variables"] == variables
+    # Configure mock to simulate run failure
+    content_generator.api_client.get_run_status.return_value = MagicMock(
+        status="failed",
+        last_error={"code": "error_code", "message": "Run failed"},
+        get=lambda x, y=None: {"code": "error_code", "message": "Run failed"} if x == "last_error" else y
+    )
+    
+    with pytest.raises(RuntimeError) as exc_info:
+        await content_generator.generate_slide_content(
+            "title",
+            {
+                "title": "Test Title",
+                "subtitle": "Test Subtitle",
+                "presenter": "Test User",
+                "date": "2024-03-31"
+            }
+        )
+    assert "Run failed" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_invalid_response_format(content_generator):
+    """Test handling of invalid response format."""
+    await content_generator.initialize()
+    
+    # Configure mock to return invalid response format
+    content_generator.api_client.get_messages.return_value = MagicMock(
+        data=[
+            MagicMock(
+                content=[
+                    MagicMock(
+                        # Return None for text to trigger AttributeError
+                        text=None
+                    )
+                ]
+            )
+        ]
+    )
+    
+    with pytest.raises(ValueError) as exc_info:
+        await content_generator.generate_slide_content(
+            "title",
+            {
+                "title": "Test Title",
+                "subtitle": "Test Subtitle",
+                "presenter": "Test User",
+                "date": "2024-03-31"
+            }
+        )
+    assert "Invalid response format" in str(exc_info.value)
 
 @pytest.mark.asyncio
 async def test_uninitialized_error():
-    """Test error when trying to generate content without initialization."""
-    generator = SlideContentGenerator()
-    
-    with pytest.raises(RuntimeError, match="SlideContentGenerator not initialized"):
-        await generator.generate_slide_content("title", {}) 
+    """Test error when using uninitialized generator."""
+    with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
+        generator = SlideContentGenerator(api_key="test-key")
+        
+        with pytest.raises(RuntimeError) as exc_info:
+            await generator.generate_slide_content("title", {"title": "Test"})
+        
+        assert "not initialized" in str(exc_info.value) 

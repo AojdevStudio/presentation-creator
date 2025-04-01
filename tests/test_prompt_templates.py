@@ -57,8 +57,10 @@ def test_data_visualization_slide_template():
     prompt = generate_slide_prompt('data_viz', **variables)
     
     assert 'Sales Data' in prompt
-    assert 'chart_type' in prompt.lower()
-    assert 'bar' in prompt
+    assert 'chart type: bar' in prompt.lower()
+    assert 'data:' in prompt.lower()
+    assert 'month' in prompt.lower()
+    assert 'sales' in prompt.lower()
 
 def test_section_transition_template():
     """Test section transition slide template formatting"""

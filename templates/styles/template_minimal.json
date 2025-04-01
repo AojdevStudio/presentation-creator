@@ -1,0 +1,64 @@
+{
+  "colors": {
+    "primary": "#000000",
+    "secondary": "#555555",
+    "accent1": "#BBBBBB",
+    "accent2": "#DDDDDD"
+  },
+  "fonts": {
+    "title": {
+      "name": "Helvetica",
+      "size": 36,
+      "bold": true
+    },
+    "subtitle": {
+      "name": "Helvetica",
+      "size": 24,
+      "bold": false
+    }
+  },
+  "spacing": {
+    "margins": {
+      "top": 1.0,
+      "bottom": 1.0,
+      "left": 1.0,
+      "right": 1.0
+    }
+  },
+  "slide_layouts": {
+    "title": {
+      "title": {
+        "x": 1.0,
+        "y": 2.0,
+        "width": 8.0,
+        "height": 1.2
+      },
+      "subtitle": {
+        "x": 1.0,
+        "y": 3.5,
+        "width": 8.0,
+        "height": 0.8
+      }
+    },
+    "content": {
+      "title": {
+        "x": 1.0,
+        "y": 1.0,
+        "width": 8.0,
+        "height": 0.8
+      },
+      "content": {
+        "x": 1.0,
+        "y": 2.0,
+        "width": 8.0,
+        "height": 4.5
+      }
+    }
+  },
+  "template_info": {
+    "name": "Minimal",
+    "description": "Clean and minimalist template",
+    "version": "1.0.0",
+    "author": "Presentation Generator"
+  }
+} 

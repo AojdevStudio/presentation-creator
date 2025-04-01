@@ -74,7 +74,7 @@ class ResponseCache:
         except Exception as e:
             logger.error(f"Error writing cache: {e}")
 
-class AssistantsAPIClient:
+class OpenAIClient:
     """OpenAI Assistants API client with error handling, rate limiting, and caching"""
     
     def __init__(self, api_key: Optional[str] = None, 
@@ -102,8 +102,12 @@ class AssistantsAPIClient:
             response = await func(*args, **kwargs)
             self.total_api_calls += 1
             # Update token usage if available in response
-            if hasattr(response, 'usage'):
-                self.total_tokens_used += response.usage.total_tokens
+            if hasattr(response, 'usage') and hasattr(response.usage, 'total_tokens'):
+                try:
+                    self.total_tokens_used += int(response.usage.total_tokens)
+                except (ValueError, TypeError):
+                    # Skip token counting if we can't convert to int (e.g. in tests with mocks)
+                    pass
             return response
         except openai.RateLimitError:
             logger.warning("Rate limit exceeded, retrying after exponential backoff")

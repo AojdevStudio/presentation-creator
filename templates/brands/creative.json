@@ -1,0 +1,64 @@
+{
+  "colors": {
+    "primary": "#FF4081",
+    "secondary": "#3F51B5",
+    "accent1": "#FFEB3B",
+    "accent2": "#4CAF50",
+    "text": "#212121",
+    "background": "#FAFAFA"
+  },
+  "fonts": {
+    "title": {
+      "name": "Montserrat",
+      "size": 48,
+      "bold": true,
+      "color": "#FF4081"
+    },
+    "subtitle": {
+      "name": "Montserrat",
+      "size": 32,
+      "bold": false,
+      "color": "#3F51B5"
+    },
+    "heading": {
+      "name": "Montserrat",
+      "size": 28,
+      "bold": true,
+      "color": "#FF4081"
+    },
+    "body": {
+      "name": "Roboto",
+      "size": 18,
+      "bold": false,
+      "color": "#212121"
+    },
+    "caption": {
+      "name": "Roboto",
+      "size": 14,
+      "bold": false,
+      "color": "#757575"
+    }
+  },
+  "spacing": {
+    "paragraph": 16,
+    "line": 1.5,
+    "margins": {
+      "top": 0.5,
+      "bottom": 0.5,
+      "left": 0.5,
+      "right": 0.5
+    }
+  },
+  "alignment": {
+    "title": "center",
+    "subtitle": "center",
+    "heading": "left",
+    "body": "left",
+    "caption": "left"
+  },
+  "brand_info": {
+    "name": "Creative",
+    "tagline": "Vibrant and modern design",
+    "copyright": "© 2023 Creative Brand"
+  }
+} 

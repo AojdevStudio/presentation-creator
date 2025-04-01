@@ -3,38 +3,27 @@ Tests for presentation builder functionality.
 """
 import os
 import pytest
+import pytest_asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from src.core.presentation_builder import PresentationBuilder
 
-@pytest.fixture
-def temp_pptx(tmp_path):
+@pytest_asyncio.fixture
+async def temp_pptx(tmp_path):
     """Create a temporary directory for test presentations."""
-    return tmp_path / "test.pptx"
+    test_dir = tmp_path / "test_presentations"
+    test_dir.mkdir()
+    return test_dir / "test.pptx"
 
 @pytest.fixture
-async def presentation_builder():
-    """Create a presentation builder instance with mocked dependencies."""
-    with patch('src.core.presentation_builder.SlideContentGenerator') as mock_content_gen, \
-         patch('src.core.presentation_builder.SlideGenerator') as mock_slide_gen:
-        
-        # Configure content generator mock
-        content_gen_instance = mock_content_gen.return_value
-        content_gen_instance.initialize = AsyncMock()
-        content_gen_instance.generate_multiple_slides = AsyncMock()
-        
-        # Configure slide generator mock
-        slide_gen_instance = mock_slide_gen.return_value
-        slide_gen_instance.create_title_slide = MagicMock()
-        slide_gen_instance.create_content_slide = MagicMock()
-        slide_gen_instance.create_section_transition = MagicMock()
-        slide_gen_instance.create_summary_slide = MagicMock()
-        slide_gen_instance.save = MagicMock()
-        
-        builder = PresentationBuilder()
-        await builder.initialize()
-        
-        yield builder
+def presentation_builder():
+    """Create a mock presentation builder."""
+    builder = PresentationBuilder()
+    builder.content_generator = MagicMock()
+    builder.content_generator.generate_multiple_slides = AsyncMock()
+    builder.slide_generator = MagicMock()
+    builder.slide_generator.prs = MagicMock()
+    return builder
 
 @pytest.mark.asyncio
 async def test_build_presentation(presentation_builder, temp_pptx):
@@ -58,9 +47,9 @@ async def test_build_presentation(presentation_builder, temp_pptx):
             }
         }
     ]
-    
-    # Configure mock response
-    presentation_builder.content_generator.generate_multiple_slides.return_value = [
+
+    # Configure mock response for content generation
+    presentation_builder.content_generator.generate_multiple_slides = AsyncMock(return_value=[
         {
             "type": "title",
             "content": {
@@ -78,19 +67,43 @@ async def test_build_presentation(presentation_builder, temp_pptx):
                 "context": "Generated context"
             }
         }
-    ]
-    
-    await presentation_builder.build_presentation(slide_specs, temp_pptx)
-    
-    # Verify content generation was called
+    ])
+
+    # Configure mock response for file info
+    mock_file_info = {
+        'size': 12345,
+        'created': 1234567890.0,
+        'modified': 1234567890.0,
+        'is_backup': False
+    }
+
+    # Build presentation
+    with patch('src.presentation.presentation_exporter.PresentationExporter') as MockExporter:
+        mock_exporter = MockExporter.return_value
+        mock_exporter.export.return_value = str(temp_pptx)
+        mock_exporter.get_file_info.return_value = mock_file_info
+
+        result = await presentation_builder.build_presentation(
+            slide_specs, 
+            temp_pptx,
+            {'overwrite': True}
+        )
+
+    # Verify calls
     presentation_builder.content_generator.generate_multiple_slides.assert_called_once_with(
-        slide_specs, max_retries=3
+        slide_specs,
+        max_retries=3
     )
+    assert presentation_builder.slide_generator.create_title_slide.call_count == 1
+    assert presentation_builder.slide_generator.create_content_slide.call_count == 1
     
-    # Verify slide creation methods were called
-    presentation_builder.slide_generator.create_title_slide.assert_called_once()
-    presentation_builder.slide_generator.create_content_slide.assert_called_once()
-    presentation_builder.slide_generator.save.assert_called_once_with(temp_pptx)
+    # Verify export was called with correct options
+    MockExporter.assert_called_once_with(presentation_builder.slide_generator.prs)
+    mock_exporter.export.assert_called_once_with(temp_pptx, {'overwrite': True})
+    
+    # Verify result structure
+    assert result['path'] == str(temp_pptx)
+    assert result['file_info'] == mock_file_info
 
 @pytest.mark.asyncio
 async def test_build_presentation_from_outline(presentation_builder, temp_pptx):
@@ -119,9 +132,9 @@ async def test_build_presentation_from_outline(presentation_builder, temp_pptx):
             "key_takeaway": "Takeaway 2"
         }
     ]
-    
-    # Configure mock response
-    presentation_builder.content_generator.generate_multiple_slides.return_value = [
+
+    # Configure mock response for content generation
+    presentation_builder.content_generator.generate_multiple_slides = AsyncMock(return_value=[
         {
             "type": "title",
             "content": {"title": "Test Title", "subtitle": "Generated", "presenter": "Test", "date": "2024"}
@@ -146,25 +159,45 @@ async def test_build_presentation_from_outline(presentation_builder, temp_pptx):
             "type": "summary",
             "content": {"main_topics": ["Section 1", "Section 2"], "key_takeaways": ["Takeaway 1", "Takeaway 2"]}
         }
-    ]
-    
-    await presentation_builder.build_presentation_from_outline(
-        "Test Presentation",
-        outline,
-        "Test User",
-        "2024-03-31",
-        temp_pptx
-    )
-    
-    # Verify content generation was called
+    ])
+
+    # Configure mock response for file info
+    mock_file_info = {
+        'size': 12345,
+        'created': 1234567890.0,
+        'modified': 1234567890.0,
+        'is_backup': False
+    }
+
+    # Build presentation
+    with patch('src.presentation.presentation_exporter.PresentationExporter') as MockExporter:
+        mock_exporter = MockExporter.return_value
+        mock_exporter.export.return_value = str(temp_pptx)
+        mock_exporter.get_file_info.return_value = mock_file_info
+
+        result = await presentation_builder.build_presentation_from_outline(
+            title="Test Presentation",
+            outline=outline,
+            presenter="Test User",
+            date="2024-03-31",
+            output_path=temp_pptx,
+            export_options={'create_dirs': True}
+        )
+
+    # Verify calls
     presentation_builder.content_generator.generate_multiple_slides.assert_called_once()
-    
-    # Verify all slide types were created
     assert presentation_builder.slide_generator.create_title_slide.call_count == 1
     assert presentation_builder.slide_generator.create_section_transition.call_count == 2
     assert presentation_builder.slide_generator.create_content_slide.call_count == 2
     assert presentation_builder.slide_generator.create_summary_slide.call_count == 1
-    presentation_builder.slide_generator.save.assert_called_once_with(temp_pptx)
+    
+    # Verify export was called with correct options
+    MockExporter.assert_called_once_with(presentation_builder.slide_generator.prs)
+    mock_exporter.export.assert_called_once_with(temp_pptx, {'create_dirs': True})
+    
+    # Verify result structure
+    assert result['path'] == str(temp_pptx)
+    assert result['file_info'] == mock_file_info
 
 @pytest.mark.asyncio
 async def test_error_handling(presentation_builder, temp_pptx):
@@ -180,36 +213,60 @@ async def test_error_handling(presentation_builder, temp_pptx):
             }
         }
     ]
-    
+
     # Configure mock to return an error
-    presentation_builder.content_generator.generate_multiple_slides.return_value = [
+    presentation_builder.content_generator.generate_multiple_slides = AsyncMock(
+        side_effect=Exception("Content generation failed")
+    )
+
+    # Build presentation should handle the error
+    with pytest.raises(Exception) as exc_info:
+        await presentation_builder.build_presentation(slide_specs, temp_pptx)
+    
+    assert str(exc_info.value) == "Content generation failed"
+    
+@pytest.mark.asyncio
+async def test_export_error_handling(presentation_builder, temp_pptx):
+    """Test handling of export errors."""
+    slide_specs = [
         {
-            "error": "Content generation failed",
-            "type": "title",
-            "variables": slide_specs[0]["variables"]
+            "template_type": "title",
+            "variables": {
+                "title": "Test Presentation",
+                "subtitle": "Testing Export Error",
+                "presenter": "Test User",
+                "date": "2024-03-31"
+            }
         }
     ]
-    
-    await presentation_builder.build_presentation(slide_specs, temp_pptx)
-    
-    # Verify no slides were created due to error
-    presentation_builder.slide_generator.create_title_slide.assert_not_called()
-    # But save should still be called
-    presentation_builder.slide_generator.save.assert_called_once_with(temp_pptx)
+
+    # Configure mock to succeed in content generation but fail on export
+    presentation_builder.content_generator.generate_multiple_slides = AsyncMock(return_value=[
+        {
+            "type": "title",
+            "content": slide_specs[0]["variables"]
+        }
+    ])
+
+    with patch('src.presentation.presentation_exporter.PresentationExporter') as MockExporter:
+        mock_exporter = MockExporter.return_value
+        mock_exporter.export.side_effect = OSError("Export failed")
+
+        # Build presentation should handle the export error
+        with pytest.raises(OSError) as exc_info:
+            await presentation_builder.build_presentation(slide_specs, temp_pptx)
+        
+        assert str(exc_info.value) == "Export failed"
+        mock_exporter.export.assert_called_once_with(temp_pptx, None)
 
 def test_get_template_info(presentation_builder):
     """Test getting template information."""
-    # Configure mock slide layouts
-    mock_layout = MagicMock()
-    mock_layout.name = "Title Slide"
-    presentation_builder.slide_generator.prs.slide_layouts = [mock_layout]
-    presentation_builder.slide_generator.prs.slide_masters = [MagicMock()]
-    
     info = presentation_builder.get_template_info()
-    
+
+    assert isinstance(info, dict)
     assert info["slide_layouts"] == 1
     assert info["slide_masters"] == 1
-    assert info["available_layouts"] == ["Title Slide"]
+    assert "Title Slide" in info["available_layouts"]
 
 @pytest.mark.asyncio
 async def test_save_error_handling(presentation_builder, temp_pptx):
@@ -225,17 +282,19 @@ async def test_save_error_handling(presentation_builder, temp_pptx):
             }
         }
     ]
-    
-    # Configure mock to succeed in content generation
-    presentation_builder.content_generator.generate_multiple_slides.return_value = [
+
+    # Configure mock to succeed in content generation but fail on save
+    presentation_builder.content_generator.generate_multiple_slides = AsyncMock(return_value=[
         {
             "type": "title",
             "content": slide_specs[0]["variables"]
         }
-    ]
-    
-    # Configure save to raise an exception
+    ])
     presentation_builder.slide_generator.save.side_effect = Exception("Save failed")
+
+    # Build presentation should handle the save error
+    with pytest.raises(Exception) as exc_info:
+        await presentation_builder.build_presentation(slide_specs, temp_pptx)
     
-    with pytest.raises(Exception, match="Save failed"):
-        await presentation_builder.build_presentation(slide_specs, temp_pptx) 
+    assert str(exc_info.value) == "Save failed"
+    presentation_builder.slide_generator.save.assert_called_once_with(temp_pptx) 

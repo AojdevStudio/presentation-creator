@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+when running tests always use web search to query solutions for failed tests

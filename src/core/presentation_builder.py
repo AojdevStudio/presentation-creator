@@ -7,6 +7,9 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 from .slide_content_generator import SlideContentGenerator
 from .slide_generator import SlideGenerator
+from .theme_manager import ThemeManager
+from ..presentation.presentation_exporter import PresentationExporter
+from .openai_client import OpenAIClient
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,15 +18,19 @@ logger = logging.getLogger(__name__)
 class PresentationBuilder:
     """Builds complete presentations by combining content generation and slide creation."""
     
-    def __init__(self, api_key: Optional[str] = None, template_path: Optional[str] = None):
+    def __init__(self, openai_client: Optional[OpenAIClient] = None, api_key: Optional[str] = None,
+                 template_path: Optional[str] = None, custom_theme: Optional[Dict[str, Any]] = None):
         """Initialize the presentation builder.
         
         Args:
-            api_key: Optional OpenAI API key
+            openai_client: Optional OpenAIClient instance. If not provided, one will be created.
+            api_key: Optional OpenAI API key. If not provided and openai_client is None,
+                    will use environment variable.
             template_path: Optional path to PowerPoint template
+            custom_theme: Optional custom theme settings
         """
-        self.content_generator = SlideContentGenerator(api_key=api_key)
-        self.slide_generator = SlideGenerator(template_path=template_path)
+        self.content_generator = SlideContentGenerator(openai_client=openai_client, api_key=api_key)
+        self.slide_generator = SlideGenerator(template_path=template_path, custom_theme=custom_theme)
         
     async def initialize(self) -> None:
         """Initialize the content generator."""
@@ -32,13 +39,20 @@ class PresentationBuilder:
     async def build_presentation(self, 
                                slide_specs: List[Dict[str, Any]], 
                                output_path: str,
-                               max_retries: int = 3) -> None:
+                               export_options: Optional[Dict[str, Any]] = None,
+                               max_retries: int = 3) -> Dict[str, Any]:
         """Build a complete presentation.
         
         Args:
             slide_specs: List of dictionaries containing template_type and variables for each slide
             output_path: Path where to save the presentation
+            export_options: Optional dictionary with export settings (overwrite, backup, etc.)
             max_retries: Maximum number of retries for content generation
+            
+        Returns:
+            Dictionary containing:
+            - path: Path where presentation was saved
+            - file_info: Information about the saved file
         """
         # Generate content for all slides
         generated_contents = await self.content_generator.generate_multiple_slides(
@@ -67,12 +81,18 @@ class PresentationBuilder:
             except Exception as e:
                 logger.error(f"Error creating slide: {e}")
                 
-        # Save the presentation
+        # Export the presentation
         try:
-            self.slide_generator.save(output_path)
-            logger.info(f"Presentation saved to {output_path}")
+            exporter = PresentationExporter(self.slide_generator.prs)
+            actual_path = exporter.export(output_path, export_options)
+            file_info = exporter.get_file_info(actual_path)
+            logger.info(f"Presentation saved to {actual_path}")
+            return {
+                'path': actual_path,
+                'file_info': file_info
+            }
         except Exception as e:
-            logger.error(f"Error saving presentation: {e}")
+            logger.error(f"Error exporting presentation: {e}")
             raise
             
     async def build_presentation_from_outline(self,
@@ -80,7 +100,8 @@ class PresentationBuilder:
                                             outline: List[Dict[str, Any]],
                                             presenter: str,
                                             date: str,
-                                            output_path: str) -> None:
+                                            output_path: str,
+                                            export_options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Build a presentation from a high-level outline.
         
         Args:
@@ -89,6 +110,12 @@ class PresentationBuilder:
             presenter: Presenter name
             date: Presentation date
             output_path: Path where to save the presentation
+            export_options: Optional dictionary with export settings
+            
+        Returns:
+            Dictionary containing:
+            - path: Path where presentation was saved
+            - file_info: Information about the saved file
         """
         slide_specs = []
         
@@ -136,18 +163,26 @@ class PresentationBuilder:
         })
         
         # Build the presentation
-        await self.build_presentation(slide_specs, output_path)
+        return await self.build_presentation(slide_specs, output_path, export_options)
         
     def get_template_info(self) -> Dict[str, Any]:
-        """Get information about the current template.
+        """Get information about the current template and theme.
         
         Returns:
-            Dictionary containing template information
+            Dictionary containing template and theme information
         """
+        theme_info = {
+            "colors": list(self.slide_generator.theme_manager.theme["colors"].keys()),
+            "font_styles": list(self.slide_generator.theme_manager.theme["fonts"].keys()),
+            "spacing": self.slide_generator.theme_manager.theme["spacing"],
+            "alignments": {k: str(v) for k, v in self.slide_generator.theme_manager.theme["alignment"].items()}
+        }
+        
         return {
             "slide_layouts": len(self.slide_generator.prs.slide_layouts),
             "slide_masters": len(self.slide_generator.prs.slide_masters),
             "available_layouts": [
                 layout.name for layout in self.slide_generator.prs.slide_layouts
-            ]
+            ],
+            "theme": theme_info
         } 
