@@ -56,8 +56,14 @@ OPENAI_API_KEY=your_api_key_here
 The simplest way to generate slides from your own text is through the command line:
 
 ```bash
-# From a text file:
+# From a text file in the current directory:
 python -m src.main text --file my_content.md --presenter "John Doe" --output "my_presentation.pptx"
+
+# From a text file in a specific directory (absolute path):
+python -m src.main text --file "/path/to/your/documents/my_content.md" --output "my_presentation.pptx"
+
+# From a text file in a relative directory:
+python -m src.main text --file "../documents/my_content.md" --output "my_presentation.pptx"
 
 # From direct text input:
 python -m src.main text --text "# My Presentation\n\n## Introduction\n- Point 1\n- Point 2" --format markdown
@@ -67,13 +73,13 @@ python -m src.main text --text "# My Presentation\n\n## Introduction\n- Point 1\
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `--file` | Path to text file containing your content | `--file notes.txt` |
+| `--file` | Path to text file containing your content (absolute or relative) | `--file "/path/to/my/notes.txt"` |
 | `--text` | Direct text input (use quotes and \n for line breaks) | `--text "TITLE\n\n- Point 1\n- Point 2"` |
 | `--format` | Input format: "text", "markdown", or "auto" (default) | `--format markdown` |
 | `--presenter` | Presenter name for title slide | `--presenter "Jane Smith"` |
 | `--date` | Presentation date (YYYY-MM-DD) | `--date "2024-04-01"` |
 | `--density` | Content density: "low", "medium" (default), or "high" | `--density low` |
-| `--output` | Output file path for the presentation | `--output "my_slides.pptx"` |
+| `--output` | Output file path for the presentation (absolute or relative) | `--output "/path/to/output/my_slides.pptx"` |
 
 You must provide either `--file` OR `--text` but not both.
 
