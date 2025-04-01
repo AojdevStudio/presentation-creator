@@ -14,15 +14,15 @@ A Python-based tool that automatically generates PowerPoint presentations using 
 - Asynchronous content generation
 - Error handling and retries
 - Comprehensive logging
-- Quality assurance tools:
-  - Content validation (spelling, grammar, consistency checks)
-  - Terminology consistency validation
-  - Capitalization consistency checks
 - **Custom text input for slide generation:**
   - Use your own content to create slides
   - Support for plain text and markdown formats
   - Automatic format detection
   - Control over content density per slide
+- Quality assurance tools:
+  - Content validation (spelling, grammar, consistency checks)
+  - Terminology consistency validation
+  - Capitalization consistency checks
 
 ## Installation
 
@@ -49,52 +49,37 @@ Create a `.env` file in the project root and add your API key:
 OPENAI_API_KEY=your_api_key_here
 ```
 
-## Usage
+## Using Your Own Text Content
 
-### Basic Usage
+### Command Line Usage
 
-```python
-import asyncio
-from src.core.presentation_builder import PresentationBuilder
+The simplest way to generate slides from your own text is through the command line:
 
-async def main():
-    # Initialize the presentation builder
-    builder = PresentationBuilder()
-    await builder.initialize()
-    
-    # Define slide specifications
-    slide_specs = [
-        {
-            "template_type": "title",
-            "variables": {
-                "title": "My Presentation",
-                "subtitle": "An Example",
-                "presenter": "John Doe",
-                "date": "2024-03-31"
-            }
-        },
-        {
-            "template_type": "content",
-            "variables": {
-                "title": "Key Points",
-                "key_points": [
-                    "First point",
-                    "Second point",
-                    "Third point"
-                ],
-                "context": "Additional information"
-            }
-        }
-    ]
-    
-    # Generate the presentation
-    await builder.build_presentation(slide_specs, "output.pptx")
+```bash
+# From a text file:
+python -m src.main text --file my_content.md --presenter "John Doe" --output "my_presentation.pptx"
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# From direct text input:
+python -m src.main text --text "# My Presentation\n\n## Introduction\n- Point 1\n- Point 2" --format markdown
 ```
 
-### Using an Outline
+#### Available Command Line Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--file` | Path to text file containing your content | `--file notes.txt` |
+| `--text` | Direct text input (use quotes and \n for line breaks) | `--text "TITLE\n\n- Point 1\n- Point 2"` |
+| `--format` | Input format: "text", "markdown", or "auto" (default) | `--format markdown` |
+| `--presenter` | Presenter name for title slide | `--presenter "Jane Smith"` |
+| `--date` | Presentation date (YYYY-MM-DD) | `--date "2024-04-01"` |
+| `--density` | Content density: "low", "medium" (default), or "high" | `--density low` |
+| `--output` | Output file path for the presentation | `--output "my_slides.pptx"` |
+
+You must provide either `--file` OR `--text` but not both.
+
+### Python API Usage
+
+For more control, you can use the Python API:
 
 ```python
 import asyncio
@@ -104,56 +89,17 @@ async def main():
     builder = PresentationBuilder()
     await builder.initialize()
     
-    # Define presentation outline
-    outline = [
-        {
-            "title": "Introduction",
-            "content": [
-                {
-                    "title": "Background",
-                    "points": ["Point 1", "Point 2"],
-                    "context": "Background information"
-                }
-            ],
-            "key_takeaway": "Important background concepts"
-        },
-        {
-            "title": "Main Content",
-            "content": [
-                {
-                    "title": "Key Findings",
-                    "points": ["Finding 1", "Finding 2"],
-                    "context": "Research results"
-                }
-            ],
-            "key_takeaway": "Significant findings"
-        }
-    ]
-    
-    # Generate presentation from outline
-    await builder.build_presentation_from_outline(
-        title="My Presentation",
-        outline=outline,
+    # Option 1: Use a text file
+    await builder.build_presentation_from_text_file(
+        file_path="my_content.md",
         presenter="John Doe",
-        date="2024-03-31",
+        date="2024-04-01",
+        format_type="markdown",  # or None for auto-detection
+        content_density="medium",  # "low", "medium", or "high"
         output_path="output.pptx"
     )
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Using Your Own Text Content
-
-```python
-import asyncio
-from src.core.presentation_builder import PresentationBuilder
-
-async def main():
-    builder = PresentationBuilder()
-    await builder.initialize()
     
-    # Define your presentation content as text
+    # Option 2: Use direct text input
     my_text = """
     # My Custom Presentation
     
@@ -172,57 +118,206 @@ async def main():
     3. Final considerations
     """
     
-    # Generate presentation from your text (format will be auto-detected)
     await builder.build_presentation_from_text(
         text=my_text,
         presenter="John Doe",
-        date="2024-03-31",
+        date="2024-04-01",
+        format_type="markdown",  # or None for auto-detection
+        content_density="medium",  # "low", "medium", or "high"
         output_path="my_presentation.pptx"
-    )
-    
-    # Or use a text file
-    await builder.build_presentation_from_text_file(
-        file_path="my_content.md",
-        presenter="John Doe",
-        date="2024-03-31"
     )
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### Using the Command Line Interface
+## Text Format Guidelines
 
-The easiest way to use the tool is through the command line interface:
+### Markdown Format (Recommended)
 
-#### For AI-generated content:
+Markdown is the recommended format as it provides clear structure:
+
+```markdown
+# Main Title
+
+## First Section
+This is an introduction paragraph.
+
+- Bullet point 1
+- Bullet point 2
+- Bullet point 3
+
+## Second Section
+
+### Subsection
+This becomes a subheading on the slide.
+
+1. Numbered item 1
+2. Numbered item 2
+
+## Conclusion
+Summary text goes here.
+
+- Key takeaway 1
+- Key takeaway 2
+```
+
+#### Markdown Formatting Rules:
+
+- **# Main Title** - Becomes the presentation title
+- **## Section Title** - Each becomes a new slide
+- **### Subheading** - Becomes a subheading on the current slide
+- **- Item** - Creates bullet points
+- **1. Item** - Creates numbered lists
+- **```code```** - Creates a code example slide
+- **Bold** with `**text**` and *italics* with `*text*` are preserved
+
+### Plain Text Format
+
+For simple text files without markdown:
+
+```
+PRESENTATION TITLE
+
+SECTION ONE
+This is an introduction paragraph.
+
+- This is a bullet point
+- Another bullet point
+- A third bullet point
+
+SECTION TWO
+More content here.
+
+1. First numbered item
+2. Second numbered item
+```
+
+#### Plain Text Formatting Rules:
+
+- **LINES IN ALL CAPS** - Treated as slide titles
+- **Empty lines** - Separate content blocks
+- **Lines starting with - or •** - Treated as bullet points
+- **Lines starting with numbers and a period (1.)** - Treated as numbered lists
+- **Regular text** - Treated as paragraphs
+
+### Content Density Options
+
+Control how much content appears on each slide:
+
+- **Low density**: 
+  - Max 4 bullet points per slide
+  - Shorter text blocks (300 characters max)
+  - More slides with less content each
+
+- **Medium density** (default):
+  - Max 6 bullet points per slide
+  - Medium text blocks (400 characters max)
+  - Balanced number of slides
+
+- **High density**:
+  - Max 8 bullet points per slide
+  - Longer text blocks (500 characters max)
+  - Fewer slides with more content each
+
+## Example Text Files
+
+### Example 1: Basic Markdown Presentation
+
+```markdown
+# Project Status Update
+
+## Introduction
+This presentation provides an update on the current project status.
+
+- Project started on January 15, 2024
+- Currently in development phase
+- On track for May delivery
+
+## Current Progress
+The team has completed several key milestones.
+
+- Backend API is 90% complete
+- Frontend components are 75% complete
+- Database migration is finished
+
+## Challenges
+Some issues have emerged during development.
+
+1. Integration with legacy systems
+2. Performance bottlenecks in data processing
+3. Resource constraints
+
+## Next Steps
+
+### Short-term
+- Complete API documentation
+- Finalize frontend design
+- Begin QA testing
+
+### Long-term
+- Plan for phase 2 features
+- Prepare training materials
+- Schedule deployment
+
+## Conclusion
+The project is progressing well despite challenges.
+
+- We are on track for the deadline
+- Additional resources may be needed
+- Regular updates will continue
+```
+
+### Example 2: Plain Text Format
+
+```
+PROJECT STATUS UPDATE
+
+INTRODUCTION
+This presentation provides an update on the current project status.
+
+- Project started on January 15, 2024
+- Currently in development phase
+- On track for May delivery
+
+CURRENT PROGRESS
+The team has completed several key milestones.
+
+- Backend API is 90% complete
+- Frontend components are 75% complete
+- Database migration is finished
+
+CHALLENGES
+Some issues have emerged during development.
+
+1. Integration with legacy systems
+2. Performance bottlenecks in data processing
+3. Resource constraints
+
+NEXT STEPS
+These are our upcoming priorities.
+
+- Complete API documentation
+- Finalize frontend design
+- Begin QA testing
+
+CONCLUSION
+The project is progressing well despite challenges.
+
+- We are on track for the deadline
+- Additional resources may be needed
+- Regular updates will continue
+```
+
+## AI-Generated Content (Alternative Method)
+
+If you prefer AI-generated content instead of your own text:
 
 ```bash
 python -m src.main ai "My Presentation Topic" --style professional --num-slides 10 --presenter "Your Name" --company "Your Company"
 ```
 
-This will generate a 10-slide professional presentation on your specified topic.
-
-#### For your own text content:
-
-```bash
-# From a file:
-python -m src.main text --file my_content.md --presenter "Your Name" --format markdown
-
-# Or directly:
-python -m src.main text --text "# My Presentation\n\n## First Section\n- Point 1\n- Point 2\n" --format markdown
-```
-
-Available options for text-based generation:
-- `--file`: Path to text file
-- `--text`: Direct text input
-- `--format`: Input format (text, markdown, auto)
-- `--presenter`: Presenter name
-- `--date`: Presentation date
-- `--density`: Content density per slide (low, medium, high)
-- `--output`: Output file path
-
-### Using Quality Assurance Tools
+## Quality Assurance Tools
 
 The presentation generator includes powerful quality assurance tools to ensure your presentations are error-free and consistent.
 
@@ -297,62 +392,6 @@ There's also a simple command-line interface for validation:
 ```bash
 python -m src.qa.content_validator my_presentation.json --output report.html
 ```
-
-## Text Format Guidelines
-
-When providing your own text content for slide generation, you can use these formatting conventions:
-
-### Plain Text Format
-- Lines in ALL CAPS or with numbers (1., 1.1) will be treated as headings/slide titles
-- Lines starting with -, *, or • will be treated as bullet points
-- Lines starting with numbers followed by a period or parenthesis (1. or 1)) will be treated as numbered lists
-- Empty lines separate content blocks
-- Text after a heading and before bullet points may be used as context or slide subtitles
-
-### Markdown Format
-- Use # for main titles (becomes a title slide)
-- Use ## for section headings (starts a new slide)
-- Use ### and more #'s for subheadings within a slide
-- Use -, *, or + for bullet lists
-- Use 1., 2., etc. for numbered lists
-- Use **text** for bold and *text* for italics
-- Use ```code``` for code blocks (creates special code slides)
-
-## Non-Technical Guide to Quality Assurance
-
-### What is Content Validation?
-
-Our content validation system checks your presentations for common issues:
-
-1. **Spelling and grammar errors** - Identifies misspelled words and grammar mistakes
-2. **Terminology consistency** - Ensures you use terms consistently (e.g., not mixing "website" and "web site")
-3. **Capitalization consistency** - Checks that titles and headings use consistent capitalization 
-
-### How to Use Quality Assurance
-
-1. **Generate your presentation** using one of the methods above
-2. **Run content validation** to check for issues:
-   - Either use the Python code example above
-   - Or use the command line validator
-3. **Review the validation report** to see any issues found
-4. **Fix identified problems** either manually or using suggested corrections
-
-### Understanding Validation Reports
-
-The validation report is organized by:
-
-- **Issue type** - Spelling, grammar, consistency, etc.
-- **Severity** - How important the issue is (INFO, WARNING, ERROR)
-- **Location** - Which slide and element contains the issue
-- **Suggestions** - Possible corrections for the issue
-
-### Creating a Custom Dictionary
-
-To prevent false positives for specialized terminology:
-
-1. Create a text file with your custom terms (one per line)
-2. Provide this file when running validation
-3. Terms in your custom dictionary won't be flagged as spelling errors
 
 ## Testing
 
