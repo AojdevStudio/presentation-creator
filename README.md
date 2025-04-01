@@ -18,6 +18,11 @@ A Python-based tool that automatically generates PowerPoint presentations using 
   - Content validation (spelling, grammar, consistency checks)
   - Terminology consistency validation
   - Capitalization consistency checks
+- **Custom text input for slide generation:**
+  - Use your own content to create slides
+  - Support for plain text and markdown formats
+  - Automatic format detection
+  - Control over content density per slide
 
 ## Installation
 
@@ -138,15 +143,84 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+### Using Your Own Text Content
+
+```python
+import asyncio
+from src.core.presentation_builder import PresentationBuilder
+
+async def main():
+    builder = PresentationBuilder()
+    await builder.initialize()
+    
+    # Define your presentation content as text
+    my_text = """
+    # My Custom Presentation
+    
+    ## Introduction
+    This is a presentation created from my own text content.
+    
+    - Point 1: Important information
+    - Point 2: Critical details
+    - Point 3: Key insights
+    
+    ## Second Section
+    More detailed information about the topic.
+    
+    1. First step in the process
+    2. Second step in the process
+    3. Final considerations
+    """
+    
+    # Generate presentation from your text (format will be auto-detected)
+    await builder.build_presentation_from_text(
+        text=my_text,
+        presenter="John Doe",
+        date="2024-03-31",
+        output_path="my_presentation.pptx"
+    )
+    
+    # Or use a text file
+    await builder.build_presentation_from_text_file(
+        file_path="my_content.md",
+        presenter="John Doe",
+        date="2024-03-31"
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
 ### Using the Command Line Interface
 
 The easiest way to use the tool is through the command line interface:
 
+#### For AI-generated content:
+
 ```bash
-python -m src.main "My Presentation Topic" --style professional --num-slides 10 --author "Your Name" --company "Your Company"
+python -m src.main ai "My Presentation Topic" --style professional --num-slides 10 --presenter "Your Name" --company "Your Company"
 ```
 
 This will generate a 10-slide professional presentation on your specified topic.
+
+#### For your own text content:
+
+```bash
+# From a file:
+python -m src.main text --file my_content.md --presenter "Your Name" --format markdown
+
+# Or directly:
+python -m src.main text --text "# My Presentation\n\n## First Section\n- Point 1\n- Point 2\n" --format markdown
+```
+
+Available options for text-based generation:
+- `--file`: Path to text file
+- `--text`: Direct text input
+- `--format`: Input format (text, markdown, auto)
+- `--presenter`: Presenter name
+- `--date`: Presentation date
+- `--density`: Content density per slide (low, medium, high)
+- `--output`: Output file path
 
 ### Using Quality Assurance Tools
 
@@ -224,6 +298,26 @@ There's also a simple command-line interface for validation:
 python -m src.qa.content_validator my_presentation.json --output report.html
 ```
 
+## Text Format Guidelines
+
+When providing your own text content for slide generation, you can use these formatting conventions:
+
+### Plain Text Format
+- Lines in ALL CAPS or with numbers (1., 1.1) will be treated as headings/slide titles
+- Lines starting with -, *, or • will be treated as bullet points
+- Lines starting with numbers followed by a period or parenthesis (1. or 1)) will be treated as numbered lists
+- Empty lines separate content blocks
+- Text after a heading and before bullet points may be used as context or slide subtitles
+
+### Markdown Format
+- Use # for main titles (becomes a title slide)
+- Use ## for section headings (starts a new slide)
+- Use ### and more #'s for subheadings within a slide
+- Use -, *, or + for bullet lists
+- Use 1., 2., etc. for numbered lists
+- Use **text** for bold and *text* for italics
+- Use ```code``` for code blocks (creates special code slides)
+
 ## Non-Technical Guide to Quality Assurance
 
 ### What is Content Validation?
@@ -284,6 +378,10 @@ presentation-generator/
 │   │   ├── presentation_builder.py
 │   │   ├── openai_client.py
 │   │   └── prompt_templates.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── text_parser.py
+│   │   └── content_mapper.py
 │   ├── qa/
 │   │   ├── __init__.py
 │   │   └── content_validator.py

@@ -10,6 +10,8 @@ from .slide_generator import SlideGenerator
 from .theme_manager import ThemeManager
 from ..presentation.presentation_exporter import PresentationExporter
 from .openai_client import OpenAIClient
+from ..utils.text_parser import TextParser
+from ..utils.content_mapper import ContentMapper
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +33,8 @@ class PresentationBuilder:
         """
         self.content_generator = SlideContentGenerator(openai_client=openai_client, api_key=api_key)
         self.slide_generator = SlideGenerator(template_path=template_path, custom_theme=custom_theme)
+        self.text_parser = TextParser()
+        self.content_mapper = ContentMapper()
         
     async def initialize(self) -> None:
         """Initialize the content generator."""
@@ -164,6 +168,133 @@ class PresentationBuilder:
         
         # Build the presentation
         return await self.build_presentation(slide_specs, output_path, export_options)
+    
+    async def build_presentation_from_text(self,
+                                         text: str,
+                                         presenter: str = "",
+                                         date: str = "",
+                                         format_type: Optional[str] = None,
+                                         content_density: str = "medium",
+                                         output_path: str = "output.pptx",
+                                         export_options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Build a presentation from user-provided text content.
+        
+        Args:
+            text: User-provided text content for the presentation
+            presenter: Presenter name
+            date: Presentation date
+            format_type: Optional format type ('text', 'markdown', or None for auto-detection)
+            content_density: Density of content per slide (low, medium, high)
+            output_path: Path where to save the presentation
+            export_options: Optional dictionary with export settings
+            
+        Returns:
+            Dictionary containing:
+            - path: Path where presentation was saved
+            - file_info: Information about the saved file
+        """
+        # Initialize the content mapper with the specified density
+        self.content_mapper = ContentMapper(content_density=content_density)
+        
+        # Parse the text content
+        if format_type is None:
+            # Auto-detect format
+            parsed_content = self.text_parser.parse_auto(text)
+        elif format_type.lower() == 'markdown':
+            parsed_content = self.text_parser.parse_markdown(text)
+        else:
+            parsed_content = self.text_parser.parse(text)
+            
+        # Create metadata for the presentation
+        metadata = {
+            "presenter": presenter,
+            "date": date
+        }
+        
+        # Map the parsed content to slide specifications
+        slide_specs = self.content_mapper.generate_slide_specs_from_text(
+            text=text,
+            parsed_content=parsed_content,
+            metadata=metadata
+        )
+        
+        # If no slides were generated, provide a helpful message
+        if not slide_specs:
+            logger.warning("No slides could be generated from the provided text")
+            raise ValueError("The provided text could not be parsed into presentation slides. "
+                            "Please ensure the text includes headings, bullet points, or paragraphs.")
+        
+        # Build the presentation
+        return await self.build_presentation(slide_specs, output_path, export_options)
+    
+    async def build_presentation_from_text_file(self,
+                                              file_path: str,
+                                              presenter: str = "",
+                                              date: str = "",
+                                              format_type: Optional[str] = None,
+                                              content_density: str = "medium",
+                                              output_path: Optional[str] = None,
+                                              export_options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Build a presentation from a text file.
+        
+        Args:
+            file_path: Path to the text file
+            presenter: Presenter name
+            date: Presentation date
+            format_type: Optional format type ('text', 'markdown', or None for auto-detection)
+            content_density: Density of content per slide (low, medium, high)
+            output_path: Path where to save the presentation (defaults to input filename with .pptx extension)
+            export_options: Optional dictionary with export settings
+            
+        Returns:
+            Dictionary containing:
+            - path: Path where presentation was saved
+            - file_info: Information about the saved file
+            
+        Raises:
+            FileNotFoundError: If the file does not exist
+            ValueError: If the file is empty or cannot be parsed
+        """
+        try:
+            # Check if file exists
+            file_path_obj = Path(file_path)
+            if not file_path_obj.exists():
+                raise FileNotFoundError(f"File not found: {file_path}")
+            
+            # Read the file content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+                
+            # If text is empty, raise error
+            if not text.strip():
+                raise ValueError(f"File is empty: {file_path}")
+                
+            # Determine output path if not provided
+            if output_path is None:
+                output_path = str(file_path_obj.with_suffix('.pptx'))
+                
+            # Detect format type based on file extension if not provided
+            if format_type is None:
+                extension = file_path_obj.suffix.lower()
+                if extension in ['.md', '.markdown']:
+                    format_type = 'markdown'
+                else:
+                    format_type = 'text'
+                    
+            # Build presentation from the text content
+            return await self.build_presentation_from_text(
+                text=text,
+                presenter=presenter,
+                date=date,
+                format_type=format_type,
+                content_density=content_density,
+                output_path=output_path,
+                export_options=export_options
+            )
+            
+        except Exception as e:
+            logger.error(f"Error building presentation from file: {e}")
+            raise
         
     def get_template_info(self) -> Dict[str, Any]:
         """Get information about the current template and theme.

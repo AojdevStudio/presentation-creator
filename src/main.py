@@ -12,11 +12,14 @@ import time
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+from datetime import datetime
 
 from .core.pipeline_factory import PipelineFactory
 from .core.pipeline import StageResult, PipelineStageStatus
 from .core.file_path_manager import FilePathManager
+from .core.presentation_builder import PresentationBuilder
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -29,6 +32,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Load environment variables from .env file
+load_dotenv()
 
 class PresentationGenerator:
     """Main class for orchestrating the presentation generation process."""
@@ -133,67 +139,329 @@ class PresentationGenerator:
             if stage_time:
                 logger.info(f"  - {stage.replace('_', ' ').title()} time: {stage_time}")
 
-async def process_args(args: argparse.Namespace) -> None:
-    """Process command-line arguments and execute the pipeline."""
-    # Create input data dictionary from arguments
-    input_data = {
-        "topic": args.topic,
-        "style": args.style,
-        "num_slides": args.num_slides
+async def generate_presentation(
+    topic: str, 
+    style: str = "professional", 
+    num_slides: int = 10, 
+    presenter: str = "", 
+    company: str = "",
+    output: str = "output.pptx"
+) -> Dict[str, Any]:
+    """Generate a presentation on a given topic.
+    
+    Args:
+        topic: The presentation topic
+        style: Style of the presentation (professional, casual, academic)
+        num_slides: Number of slides to generate
+        presenter: Name of the presenter
+        company: Name of the company
+        output: Output file path
+        
+    Returns:
+        Dictionary containing generation results
+    """
+    # Initialize the presentation builder
+    builder = PresentationBuilder()
+    await builder.initialize()
+    
+    # Determine current date
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Create an outline for the presentation
+    outline = [
+        {
+            "title": "Introduction",
+            "content": [
+                {
+                    "title": "Overview",
+                    "points": [f"Introduction to {topic}", "Why this matters", "What we'll cover"],
+                    "context": f"Setting the stage for our discussion on {topic}"
+                }
+            ],
+            "key_takeaway": "Understanding the importance of this topic"
+        }
+    ]
+    
+    # Add main content sections based on the requested number of slides
+    # Allocate slides to sections (roughly 1 title, 1 summary, and the rest distributed)
+    content_slides = num_slides - 2  # Accounting for title and summary slides
+    
+    # Basic distribution: 1/3 for background, 2/3 for main points
+    background_section = {
+        "title": "Background",
+        "content": [
+            {
+                "title": "Context & History",
+                "points": [f"Evolution of {topic}", "Key developments", "Current landscape"],
+                "context": f"Historical perspective on {topic}"
+            }
+        ],
+        "key_takeaway": "Historical context is essential to understanding the topic"
     }
+    outline.append(background_section)
     
-    # Add optional arguments if provided
-    if args.author:
-        input_data["author"] = args.author
-    if args.company:
-        input_data["company"] = args.company
-    if args.keywords:
-        input_data["keywords"] = args.keywords.split(",")
-    
-    # Create configuration
-    config = {
-        "theme": args.theme,
-        "output_format": args.output_format,
-        "max_retries": args.max_retries,
-        "checkpoints_enabled": not args.no_checkpoints,
-        "fallback_templates_enabled": not args.no_fallback
+    main_points_section = {
+        "title": "Key Points",
+        "content": [
+            {
+                "title": "Main Considerations",
+                "points": ["Important aspect 1", "Important aspect 2", "Important aspect 3"],
+                "context": f"Critical elements of {topic} to consider"
+            },
+            {
+                "title": "Practical Applications",
+                "points": ["Application 1", "Application 2", "Application 3"],
+                "context": f"How {topic} is applied in practice"
+            }
+        ],
+        "key_takeaway": "These key points provide a foundation for working with this topic"
     }
+    outline.append(main_points_section)
     
-    # Create generator and generate presentation
-    config_path = Path(args.config) if args.config else None
-    generator = PresentationGenerator(config_path)
+    # For larger presentations, add more detail sections
+    if num_slides > 6:
+        challenges_section = {
+            "title": "Challenges & Solutions",
+            "content": [
+                {
+                    "title": "Common Challenges",
+                    "points": ["Challenge 1", "Challenge 2", "Challenge 3"],
+                    "context": f"Obstacles often encountered with {topic}"
+                },
+                {
+                    "title": "Effective Solutions",
+                    "points": ["Solution approach 1", "Solution approach 2", "Solution approach 3"],
+                    "context": f"Proven strategies to address challenges in {topic}"
+                }
+            ],
+            "key_takeaway": "Anticipating and solving challenges is key to success"
+        }
+        outline.append(challenges_section)
     
-    try:
-        output_path = await generator.generate_presentation(input_data)
-        print(f"✓ Presentation generated successfully: {output_path}")
-    except Exception as e:
-        print(f"✗ Failed to generate presentation: {e}")
-        exit(1)
+    # For very detailed presentations, add future trends
+    if num_slides > 8:
+        future_section = {
+            "title": "Future Outlook",
+            "content": [
+                {
+                    "title": "Emerging Trends",
+                    "points": ["Trend 1", "Trend 2", "Trend 3"],
+                    "context": f"Where {topic} is heading in the future"
+                }
+            ],
+            "key_takeaway": "Staying ahead of trends ensures continued relevance"
+        }
+        outline.append(future_section)
+    
+    # Generate the presentation from the outline
+    result = await builder.build_presentation_from_outline(
+        title=f"{topic}",
+        outline=outline,
+        presenter=presenter if presenter else "Presenter Name",
+        date=current_date,
+        output_path=output
+    )
+    
+    return result
 
-def main():
-    """Main entry point for the presentation generation pipeline."""
+async def generate_presentation_from_text(
+    text: str,
+    format_type: Optional[str] = None,
+    presenter: str = "",
+    date: str = "",
+    content_density: str = "medium",
+    output: str = "output.pptx"
+) -> Dict[str, Any]:
+    """Generate a presentation from user-provided text.
+    
+    Args:
+        text: User-provided text content
+        format_type: Optional format type ('text', 'markdown', or None for auto-detection)
+        presenter: Name of the presenter
+        date: Presentation date
+        content_density: Density of content per slide (low, medium, high)
+        output: Output file path
+        
+    Returns:
+        Dictionary containing generation results
+    """
+    # Initialize the presentation builder
+    builder = PresentationBuilder()
+    await builder.initialize()
+    
+    # Use current date if not provided
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Generate the presentation from text
+    result = await builder.build_presentation_from_text(
+        text=text,
+        presenter=presenter,
+        date=date,
+        format_type=format_type,
+        content_density=content_density,
+        output_path=output
+    )
+    
+    return result
+
+async def generate_presentation_from_text_file(
+    file_path: str,
+    format_type: Optional[str] = None,
+    presenter: str = "",
+    date: str = "",
+    content_density: str = "medium",
+    output: Optional[str] = None
+) -> Dict[str, Any]:
+    """Generate a presentation from a text file.
+    
+    Args:
+        file_path: Path to the text file
+        format_type: Optional format type ('text', 'markdown', or None for auto-detection)
+        presenter: Name of the presenter
+        date: Presentation date
+        content_density: Density of content per slide (low, medium, high)
+        output: Output file path
+        
+    Returns:
+        Dictionary containing generation results
+    """
+    # Initialize the presentation builder
+    builder = PresentationBuilder()
+    await builder.initialize()
+    
+    # Use current date if not provided
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Generate the presentation from the text file
+    result = await builder.build_presentation_from_text_file(
+        file_path=file_path,
+        presenter=presenter,
+        date=date,
+        format_type=format_type,
+        content_density=content_density,
+        output_path=output
+    )
+    
+    return result
+
+def create_parser() -> argparse.ArgumentParser:
+    """Create command-line argument parser.
+    
+    Returns:
+        Configured argument parser
+    """
     parser = argparse.ArgumentParser(description="Generate PowerPoint presentations automatically")
     
-    # Required arguments
-    parser.add_argument("topic", help="The topic of the presentation")
+    # Create subparsers for different modes
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
     
-    # Optional arguments
-    parser.add_argument("--style", default="professional", help="Presentation style (professional, casual, academic)")
-    parser.add_argument("--num-slides", type=int, default=10, help="Number of slides to generate")
-    parser.add_argument("--theme", default="default", help="Presentation theme name")
-    parser.add_argument("--output-format", default="pptx", choices=["pptx", "pdf"], help="Output format")
-    parser.add_argument("--author", help="Author name")
-    parser.add_argument("--company", help="Company name")
-    parser.add_argument("--keywords", help="Comma-separated keywords")
-    parser.add_argument("--config", help="Path to JSON configuration file")
-    parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of retries for failed stages")
-    parser.add_argument("--no-checkpoints", action="store_true", help="Disable checkpointing")
-    parser.add_argument("--no-fallback", action="store_true", help="Disable fallback templates")
+    # Parser for AI-generated content
+    ai_parser = subparsers.add_parser("ai", help="Generate presentation with AI content")
+    ai_parser.add_argument("topic", help="Presentation topic")
+    ai_parser.add_argument("--style", choices=["professional", "casual", "academic"], 
+                        default="professional", help="Presentation style")
+    ai_parser.add_argument("--num-slides", type=int, default=10, help="Number of slides to generate")
+    ai_parser.add_argument("--presenter", help="Presenter name")
+    ai_parser.add_argument("--company", help="Company name")
+    ai_parser.add_argument("--output", default="output.pptx", help="Output file path")
     
-    args = parser.parse_args()
+    # Parser for text input
+    text_parser = subparsers.add_parser("text", help="Generate presentation from text input")
+    text_parser.add_argument("--text", help="Direct text input for slide generation")
+    text_parser.add_argument("--file", help="Path to text file for slide generation")
+    text_parser.add_argument("--format", choices=["text", "markdown", "auto"], 
+                          default="auto", help="Format of the input text")
+    text_parser.add_argument("--presenter", help="Presenter name")
+    text_parser.add_argument("--date", help="Presentation date (YYYY-MM-DD)")
+    text_parser.add_argument("--density", choices=["low", "medium", "high"], 
+                          default="medium", help="Density of content per slide")
+    text_parser.add_argument("--output", help="Output file path")
     
-    # Run the asyncio event loop
-    asyncio.run(process_args(args))
+    return parser
+
+async def main_async(args: Optional[List[str]] = None) -> int:
+    """Asynchronous main function that processes command-line arguments.
+    
+    Args:
+        args: Command-line arguments (if None, sys.argv is used)
+        
+    Returns:
+        Exit code
+    """
+    parser = create_parser()
+    parsed_args = parser.parse_args(args)
+    
+    if not parsed_args.command:
+        parser.print_help()
+        return 1
+    
+    try:
+        if parsed_args.command == "ai":
+            # Generate presentation with AI content
+            result = await generate_presentation(
+                topic=parsed_args.topic,
+                style=parsed_args.style,
+                num_slides=parsed_args.num_slides,
+                presenter=parsed_args.presenter or "",
+                company=parsed_args.company or "",
+                output=parsed_args.output
+            )
+            
+            print(f"Presentation generated successfully at {result['path']}")
+        elif parsed_args.command == "text":
+            # Determine if we're using file or direct text input
+            if parsed_args.file:
+                # Format handling
+                format_type = parsed_args.format
+                if format_type == "auto":
+                    format_type = None  # Let the system auto-detect
+                
+                # Generate from file
+                result = await generate_presentation_from_text_file(
+                    file_path=parsed_args.file,
+                    format_type=format_type,
+                    presenter=parsed_args.presenter or "",
+                    date=parsed_args.date or "",
+                    content_density=parsed_args.density,
+                    output=parsed_args.output
+                )
+                
+                print(f"Presentation generated successfully at {result['path']}")
+            elif parsed_args.text:
+                # Format handling
+                format_type = parsed_args.format
+                if format_type == "auto":
+                    format_type = None  # Let the system auto-detect
+                
+                # Generate from direct text
+                result = await generate_presentation_from_text(
+                    text=parsed_args.text,
+                    format_type=format_type,
+                    presenter=parsed_args.presenter or "",
+                    date=parsed_args.date or "",
+                    content_density=parsed_args.density,
+                    output=parsed_args.output or "output.pptx"
+                )
+                
+                print(f"Presentation generated successfully at {result['path']}")
+            else:
+                print("Error: Either --text or --file must be provided")
+                return 1
+                
+        return 0
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
+
+def main() -> int:
+    """Entry point for the command-line interface.
+    
+    Returns:
+        Exit code
+    """
+    return asyncio.run(main_async())
 
 if __name__ == "__main__":
-    main() 
+    sys.exit(main()) 
