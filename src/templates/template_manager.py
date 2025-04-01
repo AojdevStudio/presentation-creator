@@ -389,7 +389,10 @@ class TemplateManager:
                 # Merge specific style properties from the global style based on element type
                 element_type = element["type"]
                 if element_type in style_data.get("elements", {}):
-                    element["style"] = {**style_data["elements"][element_type], **element["style"]}
+                    # Create a merged style dictionary by updating the element's style
+                    # with the properties from the style_data for this element type
+                    for key, value in style_data["elements"][element_type].items():
+                        element["style"][key] = value
         
         # Save as new template or update existing
         target_name = save_as or template_name
